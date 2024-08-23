@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 import ta
 from getListDate import get_first_trading_date
+
 # Load the JSON file
 with open('signals.json') as f:
     signals = json.load(f)
@@ -21,7 +22,7 @@ signal_data = sorted(signal_data, key=lambda x: (x['Symbol'], x['Date']))
 
 # Function to fetch historical data for a symbol over a date range
 def fetch_historical_data(symbol, start_date, end_date):
-    print(start_date)
+    # print(start_date)
     base_url = "https://api.binance.com/api/v3/klines"
     params = {
         'symbol': symbol,
@@ -82,16 +83,23 @@ def calculate_max_upward_downward_and_20percent(data, signal_close, signal_date)
     max_upward = ((data['high'].max() - signal_close) / signal_close) * 100
     max_downward = ((data['low'].min() - signal_close) / signal_close) * 100
     result_20percent = ''
-    for i, row in data.iterrows():
+    rows = data.head(30)  # Get the first 10 rows
+
+    for i, row in rows.iterrows():
+        days = (row['timestamp'] - signal_date).days
         if ((row['high'] - signal_close) / signal_close) * 100 >= 5:
-            days_to_20percent = (row['timestamp'] - signal_date).days
-            result_20percent = f"20 ({days_to_20percent} days)"
+            result_20percent = f"20 ({days} days)"
             break
+
+    # If no 5% profit is found within the first 10 days, check the last row's close
     if not result_20percent:
-        last_close = data.iloc[-1]['close']
+        last_close = rows.iloc[-1]['close']
         percent_change = ((last_close - signal_close) / signal_close) * 100
         result_20percent = f"{percent_change:.2f}%"
-        days_to_20percent = 60
+        days_to_20percent = (rows.iloc[-1]['timestamp'] - signal_date).days
+    else:
+        days_to_20percent = days
+    
     return max_upward, max_downward, result_20percent, days_to_20percent
 
 results = []
@@ -110,7 +118,7 @@ for index, signal in enumerate(signal_data):
     if len(relevant_data) > 31:
         signal_open = relevant_data.iloc[31]['open']
         rsi = calculate_rsi(relevant_data_rsi).iloc[index]
-        print(rsi,signal_date)
+        # print(rsi,signal_date)
         if rsi >= 70:
             max_upward, max_downward, result_20percent, days_to_20percent = calculate_max_upward_downward_and_20percent(relevant_data.iloc[31:], signal_open, signal_date)
             results_length = len(results)
